@@ -1,0 +1,800 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>地圖不是疆域：為什麼 AI 寫的程式老是「猜錯」你的意思</title>
+  <!-- 載入 Mermaid.js 用於在瀏覽器渲染流程圖 -->
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <style>
+    /* CSS Reset & Variable */
+    :root {
+      --bg-color: #fbfaf8;
+      --text-main: #2c2b29;
+      --text-muted: #6b6965;
+      --primary-accent: #8c7b64;
+      --accent-light: #f3f0ea;
+      --border-color: #e6e2da;
+      --font-stack: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif;
+      
+      /* 四象限莫蘭迪配色 */
+      --color-known-known: #e3ecf5;
+      --color-known-unknown: #f5ece3;
+      --color-unknown-known: #ece3f5;
+      --color-unknown-unknown: #e3f5ec;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html, body {
+      overflow-x: hidden;
+    }
+
+    body {
+      background-color: var(--bg-color);
+      color: var(--text-main);
+      font-family: var(--font-stack);
+      line-height: 1.75;
+      font-size: 17px;
+      padding: 40px 20px;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    @media (max-width: 640px) {
+      body {
+        padding: 24px 16px;
+      }
+    }
+
+    /* 限制閱讀寬度 */
+    .container {
+      max-width: 760px;
+      margin: 0 auto;
+    }
+
+    header {
+      margin-bottom: 48px;
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 24px;
+    }
+
+    h1 {
+      font-size: 2.2rem;
+      font-weight: 700;
+      line-height: 1.3;
+      color: #1a1917;
+      margin-bottom: 16px;
+      text-wrap: balance;
+      letter-spacing: -0.02em;
+    }
+
+    .meta-info {
+      font-size: 0.9rem;
+      color: var(--text-muted);
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+      margin-bottom: 12px;
+    }
+
+    .meta-info span {
+      display: inline-flex;
+      align-items: center;
+    }
+
+    /* 參考網址區塊 */
+    .ref-bar {
+      background-color: var(--accent-light);
+      border: 1px dashed var(--primary-accent);
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 32px;
+      font-size: 0.95rem;
+    }
+
+    .ref-bar h4 {
+      font-weight: 700;
+      margin-bottom: 8px;
+      color: #1a1917;
+    }
+
+    .ref-bar ul {
+      list-style-type: none;
+      padding-left: 0;
+    }
+
+    .ref-bar li {
+      margin-bottom: 6px;
+    }
+
+    .ref-link {
+      color: var(--primary-accent);
+      text-decoration: underline;
+      font-weight: 500;
+    }
+
+    .ref-link:hover {
+      color: #736450;
+    }
+
+    /* 內文樣式 */
+    p {
+      margin-bottom: 24px;
+      text-align: justify;
+    }
+
+    h2 {
+      font-size: 1.5rem;
+      font-weight: 600;
+      color: #1a1917;
+      margin-top: 48px;
+      margin-bottom: 20px;
+      text-wrap: balance;
+      border-left: 4px solid var(--primary-accent);
+      padding-left: 12px;
+    }
+
+    h3 {
+      font-size: 1.2rem;
+      font-weight: 600;
+      color: #1a1917;
+      margin-top: 32px;
+      margin-bottom: 12px;
+    }
+
+    /* 引言與提示框 */
+    blockquote {
+      border-left: 4px solid var(--primary-accent);
+      background-color: var(--accent-light);
+      padding: 16px 20px;
+      margin: 24px 0;
+      border-radius: 0 8px 8px 0;
+      font-style: italic;
+      color: #4a4945;
+    }
+
+    /* 原文圖片與圖表嵌入樣式（桌面放大版：跳脫閱讀欄寬限制） */
+    .article-image {
+      margin: 32px 0;
+      text-align: center;
+      width: 100vw;
+      max-width: 1000px;
+      position: relative;
+      left: 50%;
+      transform: translateX(-50%);
+    }
+
+    .article-image img {
+      width: 100%;
+      max-width: 900px;
+      height: auto;
+      border-radius: 8px;
+      border: 1px solid var(--border-color);
+      box-shadow: 0 4px 16px rgba(140, 123, 100, 0.08);
+      cursor: zoom-in;
+      transition: transform 0.25s ease;
+    }
+
+    @media (max-width: 640px) {
+      .article-image img {
+        max-width: 480px;
+      }
+    }
+
+    .article-image img:hover {
+      transform: scale(1.01);
+    }
+
+    .article-image figcaption, .mermaid-box-wrapper figcaption {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      margin-top: 8px;
+      font-style: normal;
+      text-align: center;
+    }
+
+    /* Lightbox 燈箱效果 */
+    .lightbox {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 200;
+      background: rgba(26, 26, 26, 0.9);
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      cursor: zoom-out;
+    }
+
+    .lightbox.is-open {
+      display: flex;
+    }
+
+    .lightbox img {
+      max-width: 96vw;
+      max-height: 92vh;
+      width: auto;
+      height: auto;
+      border-radius: 8px;
+      box-shadow: 0 12px 48px rgba(0, 0, 0, 0.5);
+    }
+
+    /* 燈箱內的 SVG (Mermaid 放大) */
+    .lightbox svg {
+      max-width: 90vw;
+      max-height: 85vh;
+      width: auto;
+      height: auto;
+      background: #ffffff;
+      padding: 32px;
+      border-radius: 12px;
+      box-shadow: 0 12px 48px rgba(0, 0, 0, 0.5);
+    }
+
+    .lightbox .lightbox-hint {
+      position: absolute;
+      top: 20px;
+      right: 24px;
+      color: rgba(255, 255, 255, 0.7);
+      font-size: 14px;
+    }
+
+    /* Mermaid 區塊（桌面放大版：跳脫閱讀欄寬限制） */
+    .mermaid-box-wrapper {
+      margin: 32px 0;
+      width: 100vw;
+      max-width: 1000px;
+      position: relative;
+      left: 50%;
+      transform: translateX(-50%);
+    }
+
+    .mermaid-box {
+      background-color: #fff;
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 24px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.02);
+      cursor: zoom-in;
+      transition: transform 0.25s ease;
+    }
+
+    .mermaid-box:hover {
+      transform: scale(1.01);
+    }
+
+    .mermaid-box .mermaid {
+      width: 100%;
+    }
+
+    .mermaid-box .mermaid svg {
+      display: block !important;
+      max-width: 100% !important;
+      width: 100% !important;
+      height: auto;
+      margin: 0 auto;
+    }
+
+    @media (max-width: 640px) {
+      .mermaid-box {
+        padding: 16px;
+      }
+    }
+
+    /* 互動式矩陣 */
+    .matrix-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin: 32px 0;
+    }
+
+    @media (max-width: 600px) {
+      .matrix-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .matrix-card {
+      padding: 20px;
+      border-radius: 12px;
+      border: 1px solid var(--border-color);
+      transition: transform 0.3s ease, box-shadow 0.3s ease;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .matrix-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 8px 24px rgba(140, 123, 100, 0.12);
+    }
+
+    .matrix-card::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 6px;
+      height: 100%;
+    }
+
+    .matrix-card.k-k { background-color: var(--color-known-known); }
+    .matrix-card.k-k::before { background-color: #3182ce; }
+    .matrix-card.k-u { background-color: var(--color-known-unknown); }
+    .matrix-card.k-u::before { background-color: #dd6b20; }
+    .matrix-card.u-k { background-color: var(--color-unknown-known); }
+    .matrix-card.u-k::before { background-color: #805ad5; }
+    .matrix-card.u-u { background-color: var(--color-unknown-unknown); }
+    .matrix-card.u-u::before { background-color: #38a169; }
+
+    .matrix-title {
+      font-weight: 700;
+      font-size: 1.1rem;
+      margin-bottom: 8px;
+      color: #1a1917;
+    }
+
+    .matrix-desc {
+      font-size: 0.95rem;
+      color: #4a4945;
+      line-height: 1.5;
+    }
+
+    /* Prompt 卡片設計 */
+    .prompt-box {
+      background-color: #fdfdfd;
+      border: 1px solid #e1dfda;
+      border-radius: 8px;
+      margin: 20px 0;
+      padding: 18px;
+      position: relative;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
+    }
+
+    .prompt-label {
+      font-size: 0.8rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--primary-accent);
+      margin-bottom: 8px;
+    }
+
+    .prompt-content {
+      font-family: Consolas, Monaco, "Courier New", Courier, monospace;
+      font-size: 0.95rem;
+      color: #3f3e3a;
+      line-height: 1.5;
+      background-color: #f7f6f3;
+      padding: 12px;
+      border-radius: 6px;
+      margin-bottom: 12px;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+
+    .copy-btn {
+      background-color: var(--primary-accent);
+      color: #fff;
+      border: none;
+      padding: 6px 12px;
+      font-size: 0.85rem;
+      border-radius: 4px;
+      cursor: pointer;
+      font-weight: 500;
+      transition: background-color 0.2s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .copy-btn:hover {
+      background-color: #736450;
+    }
+
+    .copy-btn.copied {
+      background-color: #38a169;
+    }
+
+    /* 流程步驟樣式 */
+    .step-list {
+      list-style: none;
+      margin: 24px 0;
+    }
+
+    .step-item {
+      display: flex;
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+
+    .step-num {
+      width: 28px;
+      height: 28px;
+      background-color: var(--primary-accent);
+      color: #fff;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 0.9rem;
+      flex-shrink: 0;
+      margin-top: 3px;
+    }
+
+    .step-text h4 {
+      font-weight: 700;
+      margin-bottom: 4px;
+      color: #1a1917;
+    }
+
+    /* 頁尾 */
+    footer {
+      margin-top: 64px;
+      border-top: 1px solid var(--border-color);
+      padding-top: 24px;
+      text-align: center;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <header>
+      <h1>地圖不是疆域：為什麼 AI 寫的程式老是「猜錯」你的意思</h1>
+      <div class="meta-info">
+        <span>🕒 閱讀時間：約 8 分鐘</span>
+        <span>✍️ 作者：Thariq Shihipar (Anthropic 技術團隊成員)</span>
+        <span>🔗 來源：<a href="https://claude.com/blog/a-field-guide-to-claude-fable-finding-your-unknowns" target="_blank" style="color: var(--primary-accent); text-decoration: none;">Anthropic 官方部落格</a></span>
+      </div>
+    </header>
+
+    <!-- 參考資訊區塊 -->
+    <div class="ref-bar">
+      <h4>🔗 導讀參考來源</h4>
+      <ul>
+        <li>• <strong>Anthropic 原文網址：</strong> <a class="ref-link" href="https://claude.com/blog/a-field-guide-to-claude-fable-finding-your-unknowns" target="_blank">A field guide to Claude Fable 5: Finding your unknowns</a></li>
+      </ul>
+    </div>
+
+    <main>
+      <!-- ACT 1：痛點與地圖疆域的落差 -->
+      <section>
+        <p>你一定遇過這種事：你跟 AI 說清楚要做什麼，AI 也很快生出一大堆程式碼。你很有信心地執行，畫面卻跳出滿滿的紅字錯誤。你仔細一看，程式碼的文法完全沒錯，問題出在別的地方：<strong>AI 用了一個專案裡根本不存在的功能</strong>，或是<strong>誤解了你原本程式的架構</strong>。你可能會想：「這 AI 是不是在亂猜？」其實更準確地說：AI 猜對了你「有講出來」的部分，猜錯了你「以為不用講」的部分。這不是 AI 笨，而是你們兩個之間，有一段連你自己都沒發現的溝通落差。</p>
+
+        <blockquote>
+          「地圖不是疆域。」你寫給 AI 的提示詞，就像一張地圖——那是你腦中對這個專案的想像。但專案真正的程式碼、資料庫、還有各種例外狀況，才是「疆域」，也就是真實世界的樣子。地圖畫得再仔細，也可能跟真正的地形不一樣。
+        </blockquote>
+
+        <p>地圖跟疆域中間的落差，就叫做「未知」。現在 AI 寫程式碼的速度快到不可思議，所以真正決定一個專案做得好不好的，已經不是「AI 會不會寫程式」，而是「人類能不能把疆域裡藏著的未知，講清楚給 AI 聽」。</p>
+
+        <!-- 嵌入原文圖片 1：地圖與疆域 -->
+        <figure class="article-image">
+          <img src="https://cdn.prod.website-files.com/68a44d4040f98a4adf2207b6/6a4be4919e159adcdfa3ec1c_94358c3c.png" alt="地圖與疆域（The Map and the Territory）">
+          <figcaption>▲ 地圖是你腦中對專案的想像，疆域是專案真實的樣子，中間的落差就是未知（點擊可放大）</figcaption>
+        </figure>
+
+        <figure class="article-image">
+          <picture>
+            <source media="(max-width: 640px)" srcset="images/map-territory-portrait.webp">
+            <img src="images/map-territory.webp" alt="地圖與疆域的落差（kawaii 風格插圖）">
+          </picture>
+          <figcaption>▲ 男孩手上的地圖，跟右邊電路小島「疆域」之間，飄著一朵疑惑的「未知」雲（點擊可放大）</figcaption>
+        </figure>
+      </section>
+
+      <!-- ACT 2：舊解法為何失效，以及它其實在做什麼 -->
+      <section>
+        <h2>舊方法為什麼行不通：寫文件真的能解決問題嗎？</h2>
+        <p>比較有經驗的工程師，可能會想到過去的做法：在動手寫程式之前，先花很長時間，把需求跟系統設計的每個細節，都寫成一份很厚的文件，想辦法先把所有問題都想清楚。這麼做的道理很簡單：以前寫程式碼很花時間、很花力氣，所以先想清楚，比先寫出來再說更划算。</p>
+
+        <p>但這個道理，現在被 AI 打破了。現在只要幾分鐘，AI 就能幫你做出一個可以試用的原型，幾乎不用花什麼成本。這樣一來，「先寫一份很厚的文件」反而變成比較貴的做法——因為那份文件一樣會有寫漏的地方，而漏掉的地方，要等到真的寫程式碼時才會被發現。說白了：寫文件從來沒有真的解決「未知」的問題，它只是把犯錯的時間往後延，讓你誤以為「我已經都想清楚了」。原型比文件誠實，因為原型會直接讓你看到，你以為理所當然、但其實從沒講清楚的假設，到底對不對。</p>
+
+        <p>老實說，「地圖與疆域」這個說法，其實不是全新的概念，跟很多管理學裡「已知／未知」的分類方式很像。它真正的價值，不是這個分類本身，而是把「發現問題、然後修正」這件事，壓縮到只要幾分鐘，讓釐清問題跟寫程式碼一樣便宜。</p>
+
+        <!-- 嵌入原文圖片 3：對齊的藝術 -->
+        <figure class="article-image">
+          <img src="https://cdn.prod.website-files.com/68a44d4040f98a4adf2207b6/6a4be4919e159adcdfa3ec55_c4646783.png" alt="在太過具體與太過模糊中取得平衡">
+          <figcaption>▲ 拿捏跟 AI 溝通的分寸——講得太細，AI 沒有彈性；講得太模糊，AI 又抓不到重點（點擊可放大）</figcaption>
+        </figure>
+
+        <!-- Mermaid 圖示一：地圖與疆域落差 -->
+        <div class="mermaid-box-wrapper">
+          <div class="mermaid-box">
+            <div class="mermaid">
+              graph TD
+                  Map["地圖：提示詞與背景規劃"] -->|存在落差| Unknowns{"未知物"}
+                  Unknowns -->|實作阻礙| Territory["疆域：專案程式碼與限制"]
+
+                  subgraph loop ["人機協同對齊"]
+                      Territory -->|"1. 實作前：盲點檢視與原型"| Map
+                      Territory -->|"2. 實作中：偏差筆記"| Map
+                      Territory -->|"3. 實作後：提案與測驗"| Map
+                  end
+
+                  classDef default fill:#f9f9f9,stroke:#8c7b64,stroke-width:1.5px;
+                  classDef highlight fill:#f5ece3,stroke:#dd6b20,stroke-width:2px;
+                  class Unknowns highlight;
+            </div>
+          </div>
+          <figcaption>▲ 人機對齊迴路圖（點擊可向量放大）</figcaption>
+        </div>
+      </section>
+
+      <!-- ACT 3：機制解構——四象限與三階段循環 -->
+      <section>
+        <h2>拆開來看：四種未知與三個階段到底在解決什麼</h2>
+        <p>跟 AI 一起工作時，你腦中或專案裡的所有資訊，其實可以分成四種。這樣分類，可以幫你更有系統地找出「還沒講清楚」的地方：</p>
+
+        <!-- 嵌入原文圖片 2：四象限分類 -->
+        <figure class="article-image">
+          <img src="https://cdn.prod.website-files.com/68a44d4040f98a4adf2207b6/6a4be4919e159adcdfa3ec52_cc0ee2de.png" alt="未知的四個象限（The Matrix of Unknowns）">
+          <figcaption>▲ 將專案中的資訊拆解為已知與未知的四象限圖表（點擊可放大）</figcaption>
+        </figure>
+
+        <div class="matrix-grid">
+          <div class="matrix-card k-k">
+            <div class="matrix-title">已知已知</div>
+            <div class="matrix-desc">你很清楚、而且已經寫進提示詞裡的需求。例如：「幫我寫一個限制次數的功能，一分鐘最多讓人用 60 次。」</div>
+          </div>
+          <div class="matrix-card k-u">
+            <div class="matrix-title">已知未知</div>
+            <div class="matrix-desc">你自己知道還不確定的地方。例如：「我不確定資料庫裡有沒有這個欄位，要先去查一下。」</div>
+          </div>
+          <div class="matrix-card u-k">
+            <div class="matrix-title">未知已知</div>
+            <div class="matrix-desc">你覺得理所當然、所以沒特別講出來的習慣或品味，但只要看到做錯的結果，你馬上就能認出來。例如：畫面的排版風格、公司內部習慣的命名方式。</div>
+          </div>
+          <div class="matrix-card u-u">
+            <div class="matrix-title">未知未知</div>
+            <div class="matrix-desc">最危險的一種。你完全沒想過、甚至不知道它存在的限制或問題。例如：某個套件跟你的系統不相容，但你根本不知道有這個套件。</div>
+          </div>
+        </div>
+
+        <p>這四種分類的重點，不是分得多精細，而是每一種都要用不同的方法對付：「已知未知」只要主動問清楚就好，成本最低；「未知已知」最適合先做一個簡單的原型讓 AI 做做看、你再挑錯——因為你可能講不出「對」的樣子，但一看就知道「錯」在哪裡；「未知未知」最麻煩，因為你連要問什麼都不知道，只能反過來請 AI 幫你檢查，看看有沒有你完全沒想到的盲點。厲害的工程師，通常很擅長用 AI 把這四種未知一個一個變成已知——不是把 AI 當成打字機，而是當成一起把問題想清楚的夥伴。</p>
+
+        <p>把這套分類真的用在日常工作上，可以簡化成三個階段，而且每個階段都能在幾分鐘內完成：動手寫之前，先用便宜的方法把「已知未知」跟「未知已知」問清楚；動手寫的過程中，假設一定會冒出「未知未知」，所以請 AI 隨手記下來，而不是自己悶著頭決定；寫完之後，把「我到底懂不懂這段程式碼」這件事，變成一個可以答錯的小考，而不是憑感覺。</p>
+
+        <!-- Mermaid 圖示二：三階段流程（依裝置寬度決定橫式／直式，見底部 script） -->
+        <div class="mermaid-box-wrapper">
+          <div class="mermaid-box">
+            <div class="mermaid" id="mermaid-3stage" data-desktop="flowchart LR
+                  A[實作前] --&gt;|盲點與原型| B[實作中]
+                  B --&gt;|偏差筆記 Deviations| C[實作後]
+                  C --&gt;|隨堂測驗 Quiz| A
+
+                  style A fill:#e3ecf5,stroke:#3182ce,stroke-width:1.5px
+                  style B fill:#f5ece3,stroke:#dd6b20,stroke-width:1.5px
+                  style C fill:#e3f5ec,stroke:#38a169,stroke-width:1.5px" data-mobile="flowchart TD
+                  A[實作前] --&gt;|盲點與原型| B[實作中]
+                  B --&gt;|偏差筆記 Deviations| C[實作後]
+                  C --&gt;|隨堂測驗 Quiz| A
+
+                  style A fill:#e3ecf5,stroke:#3182ce,stroke-width:1.5px
+                  style B fill:#f5ece3,stroke:#dd6b20,stroke-width:1.5px
+                  style C fill:#e3f5ec,stroke:#38a169,stroke-width:1.5px">
+              flowchart LR
+                  A[實作前] -->|盲點與原型| B[實作中]
+                  B -->|偏差筆記 Deviations| C[實作後]
+                  C -->|隨堂測驗 Quiz| A
+
+                  style A fill:#e3ecf5,stroke:#3182ce,stroke-width:1.5px
+                  style B fill:#f5ece3,stroke:#dd6b20,stroke-width:1.5px
+                  style C fill:#e3f5ec,stroke:#38a169,stroke-width:1.5px
+            </div>
+          </div>
+          <figcaption>▲ 實作前、中、後的敏捷滾動循環（點擊可向量放大）</figcaption>
+        </div>
+
+        <ul class="step-list">
+          <li class="step-item">
+            <div class="step-num">1</div>
+            <div class="step-text">
+              <h4>動手寫之前：先找出自己的盲點</h4>
+              <p>如果你對這部分的程式庫不熟，可以先請 AI 幫你做一次「盲點檢查」，或是先做一個只有假資料的簡單畫面，讓你在還沒動到真正的程式碼之前，先確認排版跟操作方式順不順手。</p>
+            </div>
+          </li>
+          <li class="step-item">
+            <div class="step-num">2</div>
+            <div class="step-text">
+              <h4>動手寫的過程中：留下紀錄</h4>
+              <p>AI 在寫程式碼時，難免會遇到當初沒想到的特殊情況。這時候讓 AI 寫一份筆記，記下它做了什麼取捨、跟原本計畫有哪裡不一樣。這樣它才不會自己偷偷改變方向，你事後也才看得懂發生了什麼事。</p>
+            </div>
+          </li>
+          <li class="step-item">
+            <div class="step-num">3</div>
+            <div class="step-text">
+              <h4>寫完之後：確認自己真的看懂了</h4>
+              <p>AI 一次可能會改動很多程式碼，只看改了哪些地方（Git Diff），很難確定你真的看懂邏輯。合併之前，請 AI 出幾題考考你，確保你真的理解這次的改動，再進行合併。</p>
+            </div>
+          </li>
+        </ul>
+
+        <figure class="article-image">
+          <picture>
+            <source media="(max-width: 640px)" srcset="images/pair-programming-portrait.webp">
+            <img src="images/pair-programming.webp" alt="人機協作的三階段循環（kawaii 風格插圖）">
+          </picture>
+          <figcaption>▲ 男孩與圓潤發光的 AI 夥伴一起工作，右側是「實作前→實作中→實作後」的循環圖（點擊可放大）</figcaption>
+        </figure>
+      </section>
+
+      <!-- ACT 4：這套機制自己沒說出口的死角 -->
+      <section>
+        <h2>這個方法有一個大家沒說出來的漏洞</h2>
+        <p>最需要小心的地方，是「請 AI 自己記錄哪裡跟計畫不一樣」這一步。這句話聽起來很合理，但它藏著一個矛盾：要 AI 記下自己「哪裡偏離了計畫」，前提是 AI 要先「知道自己偏離了」。但「未知未知」的意思，就是連 AI 自己都不知道自己不知道。所以 AI 也可能悄悄地偏離了方向，卻完全沒發現，自然也不會寫進筆記裡，或是寫得很輕描淡寫。這不是說這個方法沒用，而是它有一個先天的限制：這份筆記，只能抓到「AI 自己有意識到、而且願意老實寫下來」的那一部分。真正藏得很深的問題，筆記幫不上忙——那些終究要靠人自己去讀程式碼、自己跑一次看看結果，才抓得到。光靠一份筆記，沒辦法代替真的動手檢查。</p>
+
+        <p>小考這一步，也值得多想一下。小考測的是「你懂不懂這段程式碼在做什麼」，這很重要，但它測的是「理解」，不是「正確」。你可能每一題都答對，但那段程式碼在某個沒被問到的特殊狀況下，還是可能是錯的。小考證明的是「你跟得上 AI 的邏輯」，不是「AI 的邏輯本身是對的」。這是兩件不一樣的事：一個是「我們有沒有溝通清楚」，一個是「這個東西到底對不對」。只做小考，很容易讓人誤以為「我已經驗證過了」，但其實只驗證了一半。</p>
+      </section>
+
+      <!-- ACT 5：真正該投資的地方 -->
+      <section>
+        <h2>真正該記住的一件事：不是流程圖，而是力氣要花在哪裡</h2>
+        <p>在 AI 寫程式碼快到不像話的年代，一個工程師真正的價值，已經不是「打字速度」，而是「能不能找出問題、把需求講清楚」。更值得投資的，不是把提示詞寫得多完美，而是看懂一件正在發生的事：以前「寫程式碼」很貴、「想清楚」很便宜，所以要先寫文件；現在「寫程式碼」幾乎不用花錢、「確認到底對不對」變成最貴的一步。所以「找出未知」和「確認正確」，要分開處理，各自花該花的力氣。下次開始一個新任務前，與其想「我該怎麼下提示詞」，不如先問自己：「這次的未知，哪些用一句話問清楚就好，哪些一定要實際跑過、親眼看到結果才能確定？」把這條線分清楚，比背再多的口訣都有用。</p>
+      </section>
+
+      <!-- 附錄：可直接複製的協作 Prompt -->
+      <section>
+        <h2>附錄：可直接複製的協作 Prompt</h2>
+        <p>以下整理了文章中提及的黃金 Prompt 範本，你可以直接複製並應用於自己與 AI 代理的日常對話中：</p>
+
+        <!-- Prompt 1 -->
+        <div class="prompt-box">
+          <div class="prompt-label">實作前：盲點檢視（探測未知未知）</div>
+          <div class="prompt-content">我現在要在此專案中開發 [新增一個驗證模組]，但我對這個程式庫中相關的驗證架構完全不熟悉。請幫我做一次「盲點檢視（Blind Spot Pass）」，指出我有什麼相關的「未知未知（Unknown Unknowns）」，並協助我設計等一下可以如何更好地向你下提示詞。</div>
+          <button class="copy-btn" onclick="copyText(this)">📋 複製 Prompt</button>
+        </div>
+
+        <!-- Prompt 2 -->
+        <div class="prompt-box">
+          <div class="prompt-label">實作前：拋棄式原型（確認未知已知）</div>
+          <div class="prompt-content">在開始串接任何真正的後端邏輯或更新應用程式狀態之前，請先撰寫一個包含假資料的單一 HTML 檔案，用來模擬 [新的控制面板工具列]。我希望在我們動到真實專案程式碼前，先對這個版面配置與操作流程進行反應與調整。</div>
+          <button class="copy-btn" onclick="copyText(this)">📋 複製 Prompt</button>
+        </div>
+
+        <!-- Prompt 3 -->
+        <div class="prompt-box">
+          <div class="prompt-label">實作前：深度訪談（架構決策對齊）</div>
+          <div class="prompt-content">請一次只問我一個問題，對我進行需求訪談。請優先詢問那些如果我的回答改變，就直接影響到底層架構設計或型別定義的問題。</div>
+          <button class="copy-btn" onclick="copyText(this)">📋 複製 Prompt</button>
+        </div>
+
+        <!-- Prompt 4 -->
+        <div class="prompt-box">
+          <div class="prompt-label">實作中：偏差記錄（防禦性實作）</div>
+          <div class="prompt-content">在實作過程中，請維持一份「implementation-notes.md」檔案。如果你遇到任何強迫你必須偏離原定計畫的邊緣個案（edge cases），請先選擇最保守的選項，並在該筆記的「變更與偏差（Deviations）」區塊中記錄下來，然後繼續進行。</div>
+          <button class="copy-btn" onclick="copyText(this)">📋 複製 Prompt</button>
+        </div>
+
+        <!-- Prompt 5 -->
+        <div class="prompt-box">
+          <div class="prompt-label">實作後：隨堂測驗（確保程式掌控權）</div>
+          <div class="prompt-content">我希望確保我完全理解了這一次程式碼變更的所有細節與影響。請提供一份變更報告，說明你的實作直覺、所做的修改，並在最下方出幾題隨堂測驗考考我，我必須完全答對才能進行 Merge。</div>
+          <button class="copy-btn" onclick="copyText(this)">📋 複製 Prompt</button>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <p>A field guide to Claude Fable 5: Finding your unknowns • 深度導讀網頁</p>
+    </footer>
+  </div>
+
+  <!-- 燈箱 Overlay DOM -->
+  <div class="lightbox" id="lightbox">
+    <span class="lightbox-hint">點擊或按 Esc 關閉</span>
+    <img src="" alt="">
+  </div>
+
+  <script>
+    // 依裝置寬度決定「三階段循環」圖是橫式(LR)還是直式(TD)
+    // 注意：必須在 mermaid 處理 .mermaid 節點之前完成替換，
+    // 若用 CSS display:none 隱藏未使用的版本，mermaid 會因為量不到隱藏元素的尺寸而噴出 NaN 錯誤。
+    (function () {
+      var el = document.getElementById('mermaid-3stage');
+      if (!el) return;
+      var isMobile = window.matchMedia('(max-width: 640px)').matches;
+      el.textContent = isMobile ? el.dataset.mobile : el.dataset.desktop;
+    })();
+
+    // 初始化 Mermaid
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: 'neutral',
+      securityLevel: 'loose',
+      themeVariables: {
+        fontSize: '20px'
+      },
+      flowchart: {
+        padding: 24,
+        useMaxWidth: true
+      }
+    });
+
+    // 複製 Prompt 邏輯
+    function copyText(btn) {
+      const text = btn.previousElementSibling.innerText;
+      navigator.clipboard.writeText(text).then(() => {
+        const originalText = btn.innerHTML;
+        btn.innerHTML = "✅ 已複製！";
+        btn.classList.add("copied");
+        setTimeout(() => {
+          btn.innerHTML = originalText;
+          btn.classList.remove("copied");
+        }, 2000);
+      });
+    }
+
+    // Lightbox 燈箱邏輯
+    (function(){
+      var lightbox = document.getElementById("lightbox");
+      var lightboxImg = lightbox.querySelector("img");
+      
+      // 開啟圖片燈箱
+      function openLightboxWithImg(imgSrc, imgAlt){
+        var oldSvg = lightbox.querySelector("svg");
+        if (oldSvg) oldSvg.remove();
+        
+        lightboxImg.style.display = "block";
+        lightboxImg.src = imgSrc;
+        lightboxImg.alt = imgAlt;
+        lightbox.classList.add("is-open");
+      }
+      
+      // 開啟 Mermaid SVG 燈箱
+      function openLightboxWithSvg(svgElement){
+        lightboxImg.style.display = "none";
+        
+        var oldSvg = lightbox.querySelector("svg");
+        if (oldSvg) oldSvg.remove();
+        
+        // 複製 SVG 節點並調整樣式以適應放大顯示
+        var clonedSvg = svgElement.cloneNode(true);
+        clonedSvg.style.width = "100%";
+        clonedSvg.style.height = "auto";
+        clonedSvg.style.maxWidth = "90vw";
+        clonedSvg.style.maxHeight = "85vh";
+        
+        lightbox.appendChild(clonedSvg);
+        lightbox.classList.add("is-open");
+      }
+      
+      function closeLightbox(){ 
+        lightbox.classList.remove("is-open"); 
+        lightboxImg.src = ""; 
+        var oldSvg = lightbox.querySelector("svg");
+        if (oldSvg) oldSvg.remove();
+      }
+      
+      // 綁定所有文章圖片
+      document.querySelectorAll(".article-image img").forEach(function(img){
+        img.addEventListener("click", function(){
+          openLightboxWithImg(img.currentSrc || img.src, img.alt);
+        });
+      });
+      
+      // 綁定所有 Mermaid 圖表容器
+      document.querySelectorAll(".mermaid-box").forEach(function(box){
+        box.addEventListener("click", function(){
+          var svg = box.querySelector("svg");
+          if (svg) {
+            openLightboxWithSvg(svg);
+          }
+        });
+      });
+      
+      lightbox.addEventListener("click", closeLightbox);
+      document.addEventListener("keydown", function(e){ 
+        if (e.key === "Escape") closeLightbox(); 
+      });
+    })();
+  </script>
+</body>
+</html>
